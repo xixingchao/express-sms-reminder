@@ -1,0 +1,10 @@
+<!-- 通知小图标：白色包裹简版（Android 通知栏要求单色白） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M21,8l-9,-6l-9,6v11l9,6l9,-6V8z M12,4.2l5.7,3.8L12,11.8L6.3,8L12,4.2z M5,9.9l6,4v6.3l-6,-4V9.9z M13,20.2v-6.3l6,-4v6.3L13,20.2z"/>
+</vector>

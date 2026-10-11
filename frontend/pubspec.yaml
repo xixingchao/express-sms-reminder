@@ -1,5 +1,5 @@
 name: campus_express
-description: "看看你递：一个纯本地的快递取件助手，读取短信中的取件码，自动生成卡片管理。"
+description: "快递提醒（妈妈版）：实时监听快递短信弹通知，取件码不上锁屏之外的第二屏，全本地。"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 2.0.0+2
 
 environment:
   sdk: ^3.12.2

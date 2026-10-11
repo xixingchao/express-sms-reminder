@@ -11,6 +11,7 @@ class ExpressInfo {
   final DateTime updatedAt;
   final DateTime? createdAt; // 本地入库时间（抓取时间），后端无此字段
   final DateTime? smsDate; // 短信送达时间（telephony m.date），比抓取时间更有价值
+  final String smsBody; // 短信原文（妈妈版：解析失败时靠原文兜底展示；只存本地）
 
   const ExpressInfo({
     required this.id,
@@ -22,6 +23,7 @@ class ExpressInfo {
     required this.updatedAt,
     this.createdAt,
     this.smsDate,
+    this.smsBody = '',
   });
 
   factory ExpressInfo.fromJson(Map<String, dynamic> json) {
@@ -59,6 +61,7 @@ class ExpressInfo {
     DateTime? updatedAt,
     DateTime? createdAt,
     DateTime? smsDate,
+    String? smsBody,
   }) {
     return ExpressInfo(
       id: id ?? this.id,
@@ -70,6 +73,7 @@ class ExpressInfo {
       updatedAt: updatedAt ?? this.updatedAt,
       createdAt: createdAt ?? this.createdAt,
       smsDate: smsDate ?? this.smsDate,
+      smsBody: smsBody ?? this.smsBody,
     );
   }
 

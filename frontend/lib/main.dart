@@ -21,11 +21,19 @@ class CampusExpressApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '看看你递',
+      title: '快递提醒',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
       ),
+      // 妈妈版：全局字号放大 15%，配合卡片大字号，老人看得清
+      builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        return MediaQuery(
+          data: mq.copyWith(textScaler: TextScaler.linear(1.15)),
+          child: child!,
+        );
+      },
       home: const MainShell(),
       debugShowCheckedModeBanner: false,
     );

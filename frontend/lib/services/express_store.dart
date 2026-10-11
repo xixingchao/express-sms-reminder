@@ -2,7 +2,8 @@
 //
 // DAY5 起数据全本地化：读短信 → 解析 → 存这里 → 首页展示。
 // 按短信 _id 去重（sms_id 唯一约束），增量扫描：已入库的短信不会重复插入。
-// 不存短信原文，只存解析后结构化字段（隐私：原始短信不入库）。
+// 妈妈版：v3 起存短信原文（sms_body），解析失败的短信靠原文兜底展示——
+// 目标是"所有快递短信都能看到"，隐私边界不变：原文只在本地，不联网不上传。
 // sms_date 存短信发送时间，用于按读取周期过滤 + 排序（体验改）。
 
 import 'package:path/path.dart';
@@ -27,7 +28,7 @@ class ExpressStore {
     final path = join(dir, 'express.db');
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, v) async {
         await db.execute('''
           CREATE TABLE express_info (
@@ -39,6 +40,7 @@ class ExpressStore {
             pickup_code TEXT NOT NULL,
             status INTEGER NOT NULL DEFAULT 0, -- 0 未取，1 已取
             sms_date INTEGER,                 -- 短信发送时间（毫秒），过滤+排序用
+            sms_body TEXT,                    -- 短信原文（解析失败兜底展示用）
             created_at INTEGER NOT NULL,       -- 入库时间（毫秒）
             updated_at INTEGER NOT NULL
           )
@@ -50,6 +52,11 @@ class ExpressStore {
           await db.execute(
               'ALTER TABLE express_info ADD COLUMN sms_date INTEGER');
         }
+        if (oldV < 3) {
+          // v3 加短信原文列
+          await db.execute(
+              'ALTER TABLE express_info ADD COLUMN sms_body TEXT');
+        }
       },
     );
   }
@@ -57,7 +64,8 @@ class ExpressStore {
   /// 批量入库：按 sms_id 去重，已存在的短信忽略（增量扫描）。
   /// 返回新插入条数。
   Future<int> upsertAll(
-      Iterable<({int smsId, int? smsDate, ParsedSms parsed})> items) async {
+      Iterable<({int smsId, int? smsDate, ParsedSms parsed, String body})>
+          items) async {
     final db = await _getDb();
     final now = DateTime.now().millisecondsSinceEpoch;
     var inserted = 0;
@@ -72,6 +80,7 @@ class ExpressStore {
           'pickup_code': it.parsed.pickupCode,
           'status': 0,
           'sms_date': it.smsDate,
+          'sms_body': it.body,
           'created_at': now,
           'updated_at': now,
         },
@@ -117,6 +126,7 @@ class ExpressStore {
       station: row['station'] as String,
       pickUpCode: row['pickup_code'] as String,
       status: row['status'] as int,
+      smsBody: (row['sms_body'] as String?) ?? '',
       updatedAt:
           DateTime.fromMillisecondsSinceEpoch(row['updated_at'] as int),
       createdAt:

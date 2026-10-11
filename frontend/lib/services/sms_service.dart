@@ -2,8 +2,9 @@
 //
 // task 23：权限申请（permission_handler 检查 + 请求 READ_SMS）。
 // task 24：收件箱读取（telephony.getInboxSms + 关键字粗筛）+ 权限触发流程。
-// 体验改：readInbox 按 sinceMs 时间戳下沉过滤（SmsFilter，SQL 层）；
-//         粗筛改为必须含"取件"或"凭"（排除"云朵清零"等无关提醒）。
+// 体验改：readInbox 按 sinceMs 时间戳下沉过滤（SmsFilter，SQL 层）。
+// 妈妈版：粗筛放宽为宽关键词集——目标是"所有快递短信都能看到不错过"，
+//         宁可多收不漏收；解析失败的条目在列表里展示原文兜底。
 // 受 AppConfig.enableLocalSms 开关控制。
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,13 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:telephony/telephony.dart';
 
 import '../widgets/sms_permission_dialog.dart';
+
+/// 快递关键词（宽抓，宁多勿漏）。
+/// 原生侧 SmsReceiver.kt 的 kExpressKeywords 必须与此保持一致。
+const List<String> kExpressKeywords = [
+  '取件', '凭', '快递', '驿站', '包裹', '丰巢', '菜鸟', '兔喜',
+  '快递柜', '自提', '派送', '签收', '已放', '代收',
+];
 
 class SmsService {
   SmsService._();
@@ -47,15 +55,14 @@ class SmsService {
   }
 
   /// 读取收件箱：按 sinceMs 时间戳下沉过滤（telephony SmsFilter，SQL 层）
-  /// + 粗筛（必须含"取件"或"凭"才视作快递短信）。调用前应先 ensurePermission。
+  /// + 宽关键词粗筛。调用前应先 ensurePermission。
   Future<List<SmsMessage>> readInbox({required int sinceMs}) async {
     final filter = SmsFilter.where(SmsColumn.DATE)
         .greaterThanOrEqualTo(sinceMs.toString());
     final all = await _telephony.getInboxSms(filter: filter);
     return all.where((m) {
       final body = m.body ?? '';
-      // 必须含"取件"或"凭"，排除"云朵清零"等无关提醒
-      return body.contains('取件') || body.contains('凭');
+      return kExpressKeywords.any(body.contains);
     }).toList();
   }
 }

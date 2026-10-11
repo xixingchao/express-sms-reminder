@@ -3,6 +3,8 @@
 // 打开应用 → 申请短信权限 → 读收件箱（按读取周期时间戳下沉过滤）→ 解析入库（去重）→ 展示卡片。
 // 数据全本地，不依赖后端。受 AppConfig.enableLocalSms 开关控制。
 // 读取周期由 settingsStore 控制，变化时自动重读。
+// 妈妈版：从通知点进应用时自动重扫（onResume）；权限补齐 RECEIVE_SMS/通知
+//（permission_handler 只管 READ_SMS，原生侧 channel 补弹剩余系统授权窗）。
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,24 +24,38 @@ class ExpressListScreen extends StatefulWidget {
   State<ExpressListScreen> createState() => _ExpressListScreenState();
 }
 
-class _ExpressListScreenState extends State<ExpressListScreen> {
+class _ExpressListScreenState extends State<ExpressListScreen>
+    with WidgetsBindingObserver {
+  static const _native = MethodChannel('express/native');
+
   final _sms = SmsService.instance;
   final _store = ExpressStore.instance;
   List<ExpressInfo> _items = const [];
   bool _loading = true;
   String? _error;
+  bool _permissionsRequested = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     settingsStore.addListener(_onSettingsChange);
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     settingsStore.removeListener(_onSettingsChange);
     super.dispose();
+  }
+
+  // 妈妈点通知打开应用 / 切回应用时自动重扫收件箱，保证列表最新
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _permissionsRequested) {
+      _load();
+    }
   }
 
   // 读取周期变化时重读
@@ -68,18 +84,29 @@ class _ExpressListScreenState extends State<ExpressListScreen> {
         SystemNavigator.pop();
         return;
       }
+      // 补齐 permission_handler 没覆盖的权限：RECEIVE_SMS（后台收短信）、
+      // POST_NOTIFICATIONS（Android 13+ 弹通知）。只在首次进入时弹。
+      if (!_permissionsRequested) {
+        _permissionsRequested = true;
+        try {
+          await _native.invokeMethod('requestSmsPermissions');
+        } catch (_) {
+          // channel 失败不影响主流程，只是收不到新短信通知
+        }
+      }
       // 读取周期：近 N 天（默认14），算出时间戳下界
       final sinceMs = DateTime.now().millisecondsSinceEpoch -
           settingsStore.readDays * 24 * 60 * 60 * 1000;
       final messages = await _sms.readInbox(sinceMs: sinceMs);
       if (seq != _loadSeq) return;
-      // 解析 + 入库去重（按短信 _id）
+      // 解析 + 入库去重（按短信 _id），原文一并入库兜底
       final items = messages
           .where((m) => m.id != null)
           .map((m) => (
                 smsId: m.id!,
                 smsDate: m.date,
                 parsed: parseSms(m.body ?? ''),
+                body: m.body ?? '',
               ))
           .toList();
       await _store.upsertAll(items);
@@ -119,11 +146,12 @@ class _ExpressListScreenState extends State<ExpressListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('我的快递'),
+        title: const Text('我的快递',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, size: 28),
           ),
         ],
       ),
@@ -154,7 +182,11 @@ class _ExpressListScreenState extends State<ExpressListScreen> {
     }
     if (_items.isEmpty) {
       return const Center(
-        child: Text('暂无未取件快递', style: TextStyle(color: Colors.grey)),
+        child: Text(
+          '还没有快递短信\n收到快递短信会自动出现在这里',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.grey, fontSize: 17, height: 1.6),
+        ),
       );
     }
     return ListView.builder(
@@ -162,7 +194,10 @@ class _ExpressListScreenState extends State<ExpressListScreen> {
       itemCount: _items.length,
       itemBuilder: (context, index) {
         final e = _items[index];
-        return ExpressCard(express: e, onStatusToggle: () => _toggle(e));
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: ExpressCard(express: e, onStatusToggle: () => _toggle(e)),
+        );
       },
     );
   }
